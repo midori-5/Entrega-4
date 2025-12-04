@@ -7,7 +7,7 @@
  *			Recibe una cadena desde un cliente y le reenvía la cadena invertida.
  *
  * Compilación:
- *			gcc -DVERBOSE -Wall -Wextra -O2 ../common.c servidor.c -o servidor
+ *			gcc -DVERBOSE -Wall -Wextra -O2 ../common.c servidor.c -o servidor -lz
  *
  * Sintaxis:
  *		 	./servidor [-i <ip>] [-p <port>]
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 	long int timerstart;
 	int timelimitsec=1;
 	int flags;
-	unsigned long *crc;
+	uLong *crc;
 
 	struct sockaddr_in client_addr;
 	socklen_t clilen;
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
 
 		//aqui se crea el buffer de entrada y salida
 	ibuflen = sizeof(struct hdr) + PAYLOAD_SIZE;
-	obuflen = sizeof(struct hdr) + PAYLOAD_SIZE+sizeof(unsigned long);//header +payload+crc
+	obuflen = sizeof(struct hdr) + PAYLOAD_SIZE+sizeof(uLong);//header +payload+crc
 	ibuffer = calloc(1, ibuflen);
 	obuffer = calloc(1, obuflen);
 	if (!ibuffer || !obuffer)
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
 	ipayload = ibuffer + sizeof(struct hdr);
 	ohdr = (struct hdr *)obuffer;
 	opayload = obuffer + sizeof(struct hdr);
-	crc=(unsigned long)(obuffer+sizeof(struct hdr) + PAYLOAD_SIZE);
+	crc=(uLong*)(obuffer+sizeof(struct hdr) + PAYLOAD_SIZE);
 
 	fprintf(stdout, "Escuchando en %s:%u ...\n",
 			ip_address, port);
@@ -205,16 +205,16 @@ int main(int argc, char **argv)
 				perror("confirmacion de archivo existente");
 			}
 			#ifdef VERBOSE
-				printf("se confirmo que el archivo no existe");
+				printf("se confirmo que el archivo existe");
 			#endif
 			// enviar datos
 			do
 			{
-				memset(opayload, 0, PAYLOAD_SIZE); // Solo limpiar el payload
 				if(retry== false){//si no hay que reintentar lee datos
+					memset(opayload, 0, PAYLOAD_SIZE); // Solo limpiar el payload
 					bytes_leidos = fread(opayload, 1, PAYLOAD_SIZE, archivo);
-					//crc = crc32(0L, Z_NULL, 0);//limpiar el crc antes de calcularlo (para que no se quede el resultado anterior). nvm lo movi al buffer y se limpia cuando limpio el buffer
-					crc=crc32(crc,(const Bytef*)opayload,PAYLOAD_SIZE);
+					memset(crc, 0,sizeof(uLong));
+					memset(crc,crc32(*crc,(const Bytef*)opayload,PAYLOAD_SIZE), sizeof(uLong));
 
 				}
 				if (0 < bytes_leidos)
