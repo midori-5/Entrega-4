@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <zlib.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <arpa/inet.h>
@@ -96,7 +97,8 @@ int main(int argc, char **argv)
     }
 
     obuflen = sizeof(struct hdr) + PAYLOAD_SIZE;
-    ibuflen = sizeof(struct hdr) + PAYLOAD_SIZE;
+    // se agrego espacio al final para el crc32
+    ibuflen = sizeof(struct hdr) + PAYLOAD_SIZE + sizeof(uLong);
     obuffer = calloc(1, obuflen);
     ibuffer = calloc(1, ibuflen);
     if (!obuffer || !ibuffer)
@@ -194,6 +196,20 @@ int main(int argc, char **argv)
                 {
                     perror("recvfrom: se perdió la conexion durante la transferencia");
                     break;
+                }
+
+                // Calcula el CRC sobre el ipayload recibido
+                uLong crc_local = crc32(0, (const Bytef*)ipayload, ihdr->len);
+
+                // Extrae el CRC que envió el servidor
+                uLong crc_remoto;
+                memcpy(&crc_remoto, ipayload + ihdr->len, sizeof(uLong));
+
+                // Compara los CRCs
+                if (crc_local != crc_remoto)
+                {
+                    fprintf(stderr,"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
+                    continue; 
                 }
 
                 // proceso el paquete recibido
