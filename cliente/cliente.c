@@ -12,7 +12,7 @@
  * Sintaxis:
  * ./cliente [-i <ip>] [-p <port>]
  *
- ***************************/
+ ******************************/
 
 #include <stdio.h>
 #include <stdlib.h>
