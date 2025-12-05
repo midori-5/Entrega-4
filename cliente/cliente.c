@@ -211,7 +211,7 @@ int main(int argc, char **argv)
                 {
                     
                     fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
-                    fprintf(stderr,"crc calculado=%lx crc recibido=%lx \n" KNRM, crc_local, *crc_remoto);
+                    fprintf(stderr,"crc calculado=%lx crc recibido=%x \n" KNRM, crc_local, *crc_remoto);
                     continue; 
                 }
                 // proceso el paquete recibido

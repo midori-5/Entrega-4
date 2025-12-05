@@ -222,7 +222,8 @@ int main(int argc, char **argv)
 					ohdr->nseq = next_packet-1;//el siguiente paquete menos 1 = paquete actual
 					ohdr->type = DATA;
 					ohdr->len = bytes_leidos;
-					nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+					//nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+					nsnd = sendto(sock, obuffer, obuflen, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 					if (nsnd == -1)
 					{
 						perror("envio de datos");
