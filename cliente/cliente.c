@@ -191,45 +191,36 @@ int main(int argc, char **argv)
             
             memset(opayload, 0, PAYLOAD_SIZE);
             // ciclo para recibir archivo en bloques de datos hasta fin de cadena
-            do
+            while(ihdr->type!=END)
             {
                 memset(ibuffer, 0, ibuflen);
                 nrcv = recvfrom(sock, ibuffer, ibuflen, 0, NULL, NULL);
                 if (nrcv <= 0)
-                {
+                {   
                     perror("recvfrom: se perdió la conexion durante la transferencia");
                     break;
                 }
-                //limpiar el crc anterior antes de volverlo a calcular
-                crc_local=crc32(0L, Z_NULL, 0);
-                // Calcula el CRC sobre el ipayload recibido
-                crc_local = crc32(crc_local, (const Bytef*)ipayload, PAYLOAD_SIZE);
-
-
-                /*// Compara los CRCs
-                if (crc_local != *crc_remoto)
-                {
-                    
-                    fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
-                    fprintf(stderr,"crc calculado=%lx crc recibido=%x \n" KNRM, crc_local, *crc_remoto);
-                    continue; 
-                }*/
-                // proceso el paquete recibido
-                /*if (ihdr->type==END){
-                    
-                }*/
+                    //printf("paquete recibido\n");
+                    //printf("len:%d  nseq:%d type:%d\n",ihdr->len,ihdr->nseq,ihdr->type);
+            
                 if (ihdr->type == DATA) // DATA 1, DATA 2...
                 {   
+                    // Calcular CRC sobre los bytes recibidos
+                    crc_local=crc32(0L, Z_NULL, 0);
+                    crc_local = crc32(crc_local, (const Bytef*)ipayload, ihdr->len); // solo calcular sobre los bytes recibidos realmente
 
-                    
                     if (crc_local!=*crc_remoto){
+                        fflush(stderr);
                         fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
-                    fprintf(stderr,"crc calculado=%lx crc recibido=%x \n" KNRM, crc_local, *crc_remoto);
-                    continue;
+                        fprintf(stderr,"crc calculado=%lx crc recibido=%lx \n" KNRM, crc_local, *crc_remoto);
+                        continue;
+                        
                     }
                     // verificar que el data que llego sea el esperado
                     else if (ihdr->nseq == next_ack_to_send-1)
-                    {
+                    {   
+                    //printf("CRC correcto. rec:%lx calc:%lx",*crc_remoto, crc_local);
+
                         // Cuando se recibe el paquete esperado
                         fwrite(ipayload, 1, ihdr->len, fp);
                         printf("Se ha escrito DATA %u (%u bytes).\n", ihdr->nseq, ihdr->len);
@@ -251,6 +242,7 @@ int main(int argc, char **argv)
                             perror("sendto (ACK de datos)");
                             break; // Salir del bucle de recepcion
                         }
+                        //printf("confirmacion enviada");
 
                         printf("Enviando ACK %u.\n", next_ack_to_send);
                         next_ack_to_send++; // Incrementar el paquete que esperamos
@@ -269,19 +261,22 @@ int main(int argc, char **argv)
                     printf("END recibido. Transferencia completada por el servidor.\n");
                     break; // salir del bucle de recepcion
                 }*/
-                else
+                else if( ihdr->type != END)
                 {
                     fprintf(stderr, "Se recibio un paquete inesperado durante la transferencia:%d.\n", ihdr->type);
                     break;
                 }
-            }while(ihdr->type!=END);
+                if(next_ack_to_send == 256)
+                next_ack_to_send=1;
+
+            }
 
         fclose(fp);
         printf("Archivo recibido y guardado como %s\n", requested_filename);
 
         // envio confirmacion final al server
         ohdr->nseq = seq++;
-        ohdr->type = ACK;
+        ohdr->type = END;
         strcpy(opayload, "Se ha recibido con exito.");
         ohdr->len = (uint16_t)strlen(opayload);
 

@@ -185,7 +185,7 @@ int main(int argc, char **argv)
 			nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 			if (nsnd == -1)
 			{
-				perror("confirmacion archivo inexistente");
+				perror("confirmacion archivo inexistente\n");
 				continue;
 			}
 			// return 3;
@@ -201,21 +201,21 @@ int main(int argc, char **argv)
 			nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 			if (nsnd == -1)
 			{
-				perror("confirmacion de archivo existente");
+				perror("confirmacion de archivo existente\n");
 			}
-			#ifdef VERBOSE
-				printf("se confirmo que el archivo existe");
-			#endif
 			// enviar datos
+
 			do
 			{
 				if(retry== false){//si no hay que reintentar lee datos
 					memset(opayload, 0, PAYLOAD_SIZE); // Solo limpiar el payload
 					bytes_leidos = fread(opayload, 1, PAYLOAD_SIZE, archivo);
+					
 					*crc=crc32(0L, Z_NULL, 0);
-					*crc=crc32(*crc,(const Bytef*)opayload,PAYLOAD_SIZE);
+					*crc=crc32(*crc,(const Bytef*)opayload,bytes_leidos);
 
 				}
+
 				if (0 < bytes_leidos)
 				{ // si se leyeron mas de 0b se envia
 
@@ -226,7 +226,7 @@ int main(int argc, char **argv)
 					nsnd = sendto(sock, obuffer, obuflen, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 					if (nsnd == -1)
 					{
-						perror("envio de datos");
+						perror("envio de datos\n");
 					}
 					fprintf(stdout, KGRN "%d bytes sent to %s with source port number %d in packet:%d with crc:%lx.\n" RESET, bytes_leidos, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), next_packet - 1, *crc); // imprime el paquete que se envio empezadno en 1
 
@@ -234,7 +234,6 @@ int main(int argc, char **argv)
 					retry=false;//por defecto no se debe reintentar.
 					fcntl(sock, F_SETFL, flags | O_NONBLOCK);//desbloquear recvfrom.
 					timerstart=time(NULL);//aca inicia el timer
-					printf("esperando peticion, siguiente paquete\n");
 					do // este ciclo se encarga de recibir la peticion del sigiuiente chunk
 					{	
 						nrcv = recvfrom(sock, ibuffer, MAX_MSGLEN, 0, (struct sockaddr *)&client_addr, (socklen_t *)&clilen);
@@ -247,10 +246,13 @@ int main(int argc, char **argv)
 					} while (((atoi(ipayload) != next_packet)&&nrcv==-1));
 					if(retry==false){//si no hay que reintentar siguiente paquete
 						next_packet++;
+						if (next_packet==256){
+							next_packet=1;
+						}
 					}
 					fcntl(sock, F_SETFL, flags);
 				}
-			} while (!(bytes_leidos < PAYLOAD_SIZE));
+			} while (bytes_leidos>0);
 
 			// Enviar fin de transmisión
 			next_packet = 1;
@@ -265,18 +267,23 @@ int main(int argc, char **argv)
 				perror("End Of Stream");
 			}
 			#ifdef VERBOSE
-				printf("End of stream");
+				printf(KGRN"Se termino de enviar\n"RESET);
 			#endif
 
 			// Confirmacion final del cliente
 			printf("Esperando la confirmación final del cliente...\n");
 			nrcv = recvfrom(sock, ibuffer, ibuflen, 0, NULL, NULL);
-			if (nrcv > 0 && ihdr->type == ACK)
+			if (nrcv > 0 && ihdr->type == END)
 			{
 				printf("Respuesta del cliente: %s\n", ipayload);
 			}
 
 			fclose(archivo);
+			next_packet=1;
+			*crc=crc32(0L, Z_NULL, 0);
+			retry=false;
+			*crc = crc32(0,Z_NULL, 0);
+			memset(opayload, 0, PAYLOAD_SIZE);
 			#ifdef VERBOSE
 				printf("se cerro el archivo");
 			#endif
