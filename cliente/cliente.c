@@ -206,19 +206,29 @@ int main(int argc, char **argv)
                 crc_local = crc32(crc_local, (const Bytef*)ipayload, PAYLOAD_SIZE);
 
 
-                // Compara los CRCs
+                /*// Compara los CRCs
                 if (crc_local != *crc_remoto)
                 {
                     
                     fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
                     fprintf(stderr,"crc calculado=%lx crc recibido=%x \n" KNRM, crc_local, *crc_remoto);
                     continue; 
-                }
+                }*/
                 // proceso el paquete recibido
+                /*if (ihdr->type==END){
+                    
+                }*/
                 if (ihdr->type == DATA) // DATA 1, DATA 2...
-                {
+                {   
+
+                    
+                    if (crc_local!=*crc_remoto){
+                        fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
+                    fprintf(stderr,"crc calculado=%lx crc recibido=%x \n" KNRM, crc_local, *crc_remoto);
+                    continue;
+                    }
                     // verificar que el data que llego sea el esperado
-                    if (ihdr->nseq == next_ack_to_send-1)
+                    else if (ihdr->nseq == next_ack_to_send-1)
                     {
                         // Cuando se recibe el paquete esperado
                         fwrite(ipayload, 1, ihdr->len, fp);
@@ -253,18 +263,17 @@ int main(int argc, char **argv)
                 }
 
                 // mensaje de control END
-                else if (ihdr->type == END) 
+                /*else if (ihdr->type == END) 
                 {
                     ipayload[ihdr->len] = '\0';
                     printf("END recibido. Transferencia completada por el servidor.\n");
                     break; // salir del bucle de recepcion
-                }
+                }*/
                 else
                 {
                     fprintf(stderr, "Se recibio un paquete inesperado durante la transferencia:%d.\n", ihdr->type);
                     break;
                 }
-                sleep(2);
             }while(ihdr->type!=END);
 
         fclose(fp);
