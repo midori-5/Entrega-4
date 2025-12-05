@@ -46,7 +46,6 @@ int main(int argc, char **argv)
 	int opt;
 	FILE *archivo;
 	int bytes_leidos=0;
-
 	//-------------
 	const char *msg_existente = "archivo_existente";
 	const char *msg_error = "archivo_inexistente";
@@ -213,8 +212,8 @@ int main(int argc, char **argv)
 				if(retry== false){//si no hay que reintentar lee datos
 					memset(opayload, 0, PAYLOAD_SIZE); // Solo limpiar el payload
 					bytes_leidos = fread(opayload, 1, PAYLOAD_SIZE, archivo);
-					memset(crc, 0,sizeof(uLong));
-					memset(crc,crc32(*crc,(const Bytef*)opayload,PAYLOAD_SIZE), sizeof(uLong));
+					*crc=crc32(0L, Z_NULL, 0);
+					*crc=crc32(*crc,(const Bytef*)opayload,PAYLOAD_SIZE);
 
 				}
 				if (0 < bytes_leidos)
@@ -228,7 +227,7 @@ int main(int argc, char **argv)
 					{
 						perror("envio de datos");
 					}
-					fprintf(stdout, KGRN "%d bytes sent to %s with source port number %d in packet:%d.\n" RESET, bytes_leidos, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), next_packet - 1); // imprime el paquete que se envio empezadno en 1
+					fprintf(stdout, KGRN "%d bytes sent to %s with source port number %d in packet:%d with crc:%lx.\n" RESET, bytes_leidos, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), next_packet - 1, *crc); // imprime el paquete que se envio empezadno en 1
 
 					memset(ibuffer, 0, ibuflen);//limpiar el buffer por si acaso
 					retry=false;//por defecto no se debe reintentar.

@@ -46,6 +46,8 @@ int main(int argc, char **argv)
     ssize_t nsnd, nrcv;
     struct sockaddr_in client_addr;
     socklen_t clilen;
+    uLong crc_local=crc32(0L, Z_NULL, 0);
+    uLong *crc_remoto;
 
     // Variables para guardar el nombre y contar ACKs
     char requested_filename[PAYLOAD_SIZE];
@@ -111,6 +113,7 @@ int main(int argc, char **argv)
     opayload = obuffer + sizeof(struct hdr);
     ihdr = (struct hdr *)ibuffer;
     ipayload = ibuffer + sizeof(struct hdr);
+    crc_remoto=(uLong *)(ibuffer+sizeof(struct hdr) + PAYLOAD_SIZE);
 
     while (1)
         {
@@ -197,21 +200,20 @@ int main(int argc, char **argv)
                     perror("recvfrom: se perdió la conexion durante la transferencia");
                     break;
                 }
-
+                //limpiar el crc anterior antes de volverlo a calcular
+                crc_local=crc32(0L, Z_NULL, 0);
                 // Calcula el CRC sobre el ipayload recibido
-                uLong crc_local = crc32(0, (const Bytef*)ipayload, ihdr->len);
+                crc_local = crc32(crc_local, (const Bytef*)ipayload, PAYLOAD_SIZE);
 
-                // Extrae el CRC que envió el servidor
-                uLong crc_remoto;
-                memcpy(&crc_remoto, ipayload + ihdr->len, sizeof(uLong));
 
                 // Compara los CRCs
-                if (crc_local != crc_remoto)
+                if (crc_local != *crc_remoto)
                 {
-                    fprintf(stderr,"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
+                    
+                    fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
+                    fprintf(stderr,"crc calculado=%lx crc recibido=%lx \n" KNRM, crc_local, *crc_remoto);
                     continue; 
                 }
-
                 // proceso el paquete recibido
                 if (ihdr->type == DATA) // DATA 1, DATA 2...
                 {
