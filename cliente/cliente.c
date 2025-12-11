@@ -7,7 +7,7 @@
  * Envía el nombre de un archivo al servidor y recibe su contenido.
  *
  * Compilación:
- * gcc -DVERBOSE -Wall -Wextra -O2 ../common.c cliente.c -o cliente
+ * gcc -DVERBOSE -Wall -Wextra -O2 ../common.c cliente.c -o cliente -lz
  *
  * Sintaxis:
  * ./cliente [-i <ip>] [-p <port>]
@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <zconf.h>
 #include <zlib.h>
 #include <unistd.h>
 #include <getopt.h>
@@ -46,8 +47,8 @@ int main(int argc, char **argv)
     ssize_t nsnd, nrcv;
     struct sockaddr_in client_addr;
     socklen_t clilen;
-    uLong crc_local=crc32(0L, Z_NULL, 0);
-    uLong *crc_remoto;
+    uLong crc_local;
+    uLong crc_remoto;
 
     // Variables para guardar el nombre y contar ACKs
     char requested_filename[PAYLOAD_SIZE];
@@ -113,7 +114,7 @@ int main(int argc, char **argv)
     opayload = obuffer + sizeof(struct hdr);
     ihdr = (struct hdr *)ibuffer;
     ipayload = ibuffer + sizeof(struct hdr);
-    crc_remoto=(uLong *)(ibuffer+sizeof(struct hdr) + PAYLOAD_SIZE);
+    //crc_remoto=(uLong *)(ibuffer+sizeof(struct hdr) + PAYLOAD_SIZE); 
 
     while (1)
         {
@@ -168,15 +169,8 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Ha ocurrido una respuesta inesperada \n");
                 continue;
             }
-            
-            // Si es REPLY, debe contener DATA 0
-            if (ihdr->nseq != 1)
-            {   
-                fprintf(stderr, "Respuesta REPLY recibida, pero no es DATA 0 (recibido %u).\n", ihdr->nseq);
-                continue;
-            }
 
-            printf("Confirmacion y DATA 0 recibidos.\n");
+            printf("Confirmacion recibida\n");
 
             // Abro archivo local en modo escritura binaria
             FILE *fp = fopen(requested_filename, "wb");
@@ -191,7 +185,7 @@ int main(int argc, char **argv)
             
             memset(opayload, 0, PAYLOAD_SIZE);
             // ciclo para recibir archivo en bloques de datos hasta fin de cadena
-            while(ihdr->type!=END)
+            do
             {
                 memset(ibuffer, 0, ibuflen);
                 nrcv = recvfrom(sock, ibuffer, ibuflen, 0, NULL, NULL);
@@ -200,26 +194,26 @@ int main(int argc, char **argv)
                     perror("recvfrom: se perdió la conexion durante la transferencia");
                     break;
                 }
-                    //printf("paquete recibido\n");
-                    //printf("len:%d  nseq:%d type:%d\n",ihdr->len,ihdr->nseq,ihdr->type);
-            
-                if (ihdr->type == DATA) // DATA 1, DATA 2...
-                {   
-                    // Calcular CRC sobre los bytes recibidos
-                    crc_local=crc32(0L, Z_NULL, 0);
-                    crc_local = crc32(crc_local, (const Bytef*)ipayload, ihdr->len); // solo calcular sobre los bytes recibidos realmente
 
-                    if (crc_local!=*crc_remoto){
-                        fflush(stderr);
-                        fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
-                        fprintf(stderr,"crc calculado=%lx crc recibido=%lx \n" KNRM, crc_local, *crc_remoto);
-                        continue;
-                        
-                    }
-                    // verificar que el data que llego sea el esperado
-                    else if (ihdr->nseq == next_ack_to_send-1)
+                    // Calcular CRC sobre los bytes recibidos
+                    crc_local = crc32(0L, (const Bytef*)ipayload, ihdr->len); // solo calcular sobre los bytes recibidos realmente
+
+                    //OBTENER CRC REMOTO
+                    memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
+                if (crc_local!=crc_remoto){                        
+                    fflush(stderr);
+                    fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
+                    fprintf(stderr,"crc calculado=%lx crc recibido=%lx \n" KNRM, crc_local, crc_remoto);
+                    continue; 
+                }
+                
+
+                else if (ihdr->type == DATA) // DATA 1, DATA 2...
+                {   
+
+                    // Verificar que el data que llego sea el esperado
+                    if (ihdr->nseq == next_ack_to_send-1)
                     {   
-                    //printf("CRC correcto. rec:%lx calc:%lx",*crc_remoto, crc_local);
 
                         // Cuando se recibe el paquete esperado
                         fwrite(ipayload, 1, ihdr->len, fp);
@@ -228,13 +222,9 @@ int main(int argc, char **argv)
                         // Enviar ACK del siguiente paquete
                         ohdr->nseq = seq++;
                         ohdr->type = ACK;
-                        sprintf(ack_payload_str, "%u", next_ack_to_send + 1); // pedimos el siguiente
-                        ohdr->len = (uint16_t)strlen(ack_payload_str);
+                        ohdr->len = 0;
 
-                        memcpy(opayload, ack_payload_str, ohdr->len);
-
-                        //printf("buf: %s\n", opayload);
-                        
+                        //Envio de ACK al servidor                        
                         nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
                                     (struct sockaddr *)&server_addr, sizeof(server_addr));
                         if (nsnd == -1)
@@ -254,13 +244,7 @@ int main(int argc, char **argv)
                     }
                 }
 
-                // mensaje de control END
-                /*else if (ihdr->type == END) 
-                {
-                    ipayload[ihdr->len] = '\0';
-                    printf("END recibido. Transferencia completada por el servidor.\n");
-                    break; // salir del bucle de recepcion
-                }*/
+                //Al recibir tipo END
                 else if( ihdr->type != END)
                 {
                     fprintf(stderr, "Se recibio un paquete inesperado durante la transferencia:%d.\n", ihdr->type);
@@ -269,7 +253,7 @@ int main(int argc, char **argv)
                 if(next_ack_to_send == 256)
                 next_ack_to_send=1;
 
-            }
+            }while(ihdr->type!=END);
 
         fclose(fp);
         printf("Archivo recibido y guardado como %s\n", requested_filename);
