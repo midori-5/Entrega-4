@@ -25,7 +25,9 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <time.h>
+#include <zconf.h>
 #include <zlib.h>
+#include <sys/time.h>
 
 #include "../common.h"
 
@@ -52,8 +54,9 @@ int main(int argc, char **argv)
 	const char *eos = "EoS";
 	int next_packet = 1;
 	bool retry=false;
-	long int timerstart;
-	int timelimitsec=1;
+	struct timeval timerstart;
+	struct timeval curtimer;
+	int timelimitusec=500000;
 	int flags;
 	uLong *crc;
 
@@ -85,7 +88,7 @@ int main(int argc, char **argv)
 			usage(stdout);
 			return 0;
 		case 't':
-			timelimitsec=atoi(optarg);
+			timelimitusec=atoi(optarg);
 			//printf("%d, %d", timelimitsec, atoi(optarg));
 			break;
 		default:
@@ -204,16 +207,15 @@ int main(int argc, char **argv)
 				perror("confirmacion de archivo existente\n");
 			}
 			// enviar datos
-
+			fcntl(sock, F_SETFL, flags | O_NONBLOCK);//desbloquear recvfrom.
 			do
 			{
 				if(retry== false){//si no hay que reintentar lee datos
 					memset(opayload, 0, PAYLOAD_SIZE); // Solo limpiar el payload
 					bytes_leidos = fread(opayload, 1, PAYLOAD_SIZE, archivo);
 					
-					*crc=crc32(0L, Z_NULL, 0);
-					*crc=crc32(*crc,(const Bytef*)opayload,bytes_leidos);
-
+					*crc=crc32(0L,(const Bytef*)opayload,bytes_leidos);
+					memcpy(opayload+bytes_leidos, crc, sizeof(*crc));
 				}
 
 				if (0 < bytes_leidos)
@@ -222,8 +224,8 @@ int main(int argc, char **argv)
 					ohdr->nseq = next_packet-1;//el siguiente paquete menos 1 = paquete actual
 					ohdr->type = DATA;
 					ohdr->len = bytes_leidos;
-					//nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
-					nsnd = sendto(sock, obuffer, obuflen, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+					nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len+4, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+					//nsnd = sendto(sock, obuffer, obuflen, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 					if (nsnd == -1)
 					{
 						perror("envio de datos\n");
@@ -232,12 +234,12 @@ int main(int argc, char **argv)
 
 					memset(ibuffer, 0, ibuflen);//limpiar el buffer por si acaso
 					retry=false;//por defecto no se debe reintentar.
-					fcntl(sock, F_SETFL, flags | O_NONBLOCK);//desbloquear recvfrom.
-					timerstart=time(NULL);//aca inicia el timer
+					gettimeofday(&timerstart, NULL);//aca inicia el timer
 					do // este ciclo se encarga de recibir la peticion del sigiuiente chunk
 					{	
 						nrcv = recvfrom(sock, ibuffer, MAX_MSGLEN, 0, (struct sockaddr *)&client_addr, (socklen_t *)&clilen);
-						if((time(NULL)-timerstart)>=timelimitsec){//si se alcanzo el tiempo limite
+						gettimeofday(&curtimer, NULL);
+						if((curtimer.tv_usec-timerstart.tv_usec)>=timelimitusec){//si se alcanzo el tiempo limite
 							retry=true;	//retry
 							printf("peticion no recibida\n");
 							break;
@@ -250,9 +252,9 @@ int main(int argc, char **argv)
 							next_packet=1;
 						}
 					}
-					fcntl(sock, F_SETFL, flags);
 				}
 			} while (bytes_leidos>0);
+			fcntl(sock, F_SETFL, flags);
 
 			// Enviar fin de transmisión
 			next_packet = 1;
