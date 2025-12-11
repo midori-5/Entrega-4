@@ -185,7 +185,7 @@ int main(int argc, char **argv)
             
             memset(opayload, 0, PAYLOAD_SIZE);
             // ciclo para recibir archivo en bloques de datos hasta fin de cadena
-            do
+            while(ihdr->type!=END)
             {
                 memset(ibuffer, 0, ibuflen);
                 nrcv = recvfrom(sock, ibuffer, ibuflen, 0, NULL, NULL);
@@ -253,7 +253,7 @@ int main(int argc, char **argv)
                 if(next_ack_to_send == 256)
                 next_ack_to_send=1;
 
-            }while(ihdr->type!=END);
+            }
 
         fclose(fp);
         printf("Archivo recibido y guardado como %s\n", requested_filename);
