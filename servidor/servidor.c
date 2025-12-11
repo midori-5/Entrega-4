@@ -224,7 +224,7 @@ int main(int argc, char **argv)
 					ohdr->nseq = next_packet-1;//el siguiente paquete menos 1 = paquete actual
 					ohdr->type = DATA;
 					ohdr->len = bytes_leidos;
-					nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len+4, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+					nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len+sizeof(*crc), 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 					//nsnd = sendto(sock, obuffer, obuflen, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 					if (nsnd == -1)
 					{
@@ -245,7 +245,7 @@ int main(int argc, char **argv)
 							break;
 						}
 						//fprintf(stdout, KBLU "received confirmation %s  sent by %s with source port number %d.\n" RESET, ibuffer, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-					} while (((atoi(ipayload) != next_packet)&&nrcv==-1));
+					} while (((ihdr->nseq != next_packet)&&nrcv==-1));
 					if(retry==false){//si no hay que reintentar siguiente paquete
 						next_packet++;
 						if (next_packet==256){
