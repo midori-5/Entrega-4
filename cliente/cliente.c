@@ -45,17 +45,17 @@ int main(int argc, char **argv)
 
     size_t len;
     ssize_t nsnd, nrcv;
-    struct sockaddr_in client_addr;
-    socklen_t clilen;
+    //struct sockaddr_in client_addr;
+    //socklen_t clilen;
     uLong crc_local;
     uLong crc_remoto;
 
     // Variables para guardar el nombre y contar ACKs
     char requested_filename[PAYLOAD_SIZE];
     uint32_t next_ack_to_send = 1;
-    char ack_payload_str[12]; // Buffer para 1,2,3...
+    //char ack_payload_str[12]; // Buffer para 1,2,3...
 
-    program_name = argv[0];
+    program_name = argv[0]; 
     ip_address = DEFAULT_IP;
     port = DEFAULT_PORT;
     seq = 0;
@@ -195,11 +195,12 @@ int main(int argc, char **argv)
                     break;
                 }
 
-                    // Calcular CRC sobre los bytes recibidos
-                    crc_local = crc32(0L, (const Bytef*)ipayload, ihdr->len); // solo calcular sobre los bytes recibidos realmente
+                // Calcular CRC sobre los bytes recibidos
+                crc_local = crc32(0L, (const Bytef*)ipayload, ihdr->len); // solo calcular sobre los bytes recibidos realmente
 
-                    //OBTENER CRC REMOTO
-                    memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
+                //obtener el crc remoto
+                memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
+                    
                 if (crc_local!=crc_remoto){                        
                     fflush(stderr);
                     fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
@@ -207,7 +208,6 @@ int main(int argc, char **argv)
                     continue; 
                 }
                 
-
                 else if (ihdr->type == DATA) // DATA 1, DATA 2...
                 {   
 
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
                         // Enviar ACK del siguiente paquete
                         ohdr->nseq = seq++;
                         ohdr->type = ACK;
-                        ohdr->len = 0;
+                        ohdr->len = 0;  
 
                         //Envio de ACK al servidor                        
                         nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
@@ -232,7 +232,6 @@ int main(int argc, char **argv)
                             perror("sendto (ACK de datos)");
                             break; // Salir del bucle de recepcion
                         }
-                        //printf("confirmacion enviada");
 
                         printf("Enviando ACK %u.\n", next_ack_to_send);
                         next_ack_to_send++; // Incrementar el paquete que esperamos
@@ -244,7 +243,7 @@ int main(int argc, char **argv)
                     }
                 }
 
-                //Al recibir tipo END
+                //Al recibir un paquete que no es DATA ni END
                 else if( ihdr->type != END)
                 {
                     fprintf(stderr, "Se recibio un paquete inesperado durante la transferencia:%d.\n", ihdr->type);
@@ -258,7 +257,7 @@ int main(int argc, char **argv)
         fclose(fp);
         printf("Archivo recibido y guardado como %s\n", requested_filename);
 
-        // envio confirmacion final al server
+        // Envio confirmacion final al servidor
         ohdr->nseq = seq++;
         ohdr->type = END;
         strcpy(opayload, "Se ha recibido con exito.");
