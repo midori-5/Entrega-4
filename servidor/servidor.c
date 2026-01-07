@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
   struct timeval curtimer;
   int timelimitusec = 500000;
   int flags;
-  uLong *crc;
+  uLong crc;
 
   struct sockaddr_in client_addr;
   socklen_t clilen;
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
   ipayload = ibuffer + sizeof(struct hdr);
   ohdr = (struct hdr *)obuffer;
   opayload = obuffer + sizeof(struct hdr);
-  crc = (uLong *)(obuffer + sizeof(struct hdr) + PAYLOAD_SIZE);
+  //crc = (uLong *)(obuffer + sizeof(struct hdr) + PAYLOAD_SIZE);//si lo uso como puntero luego no puedo moverlo de lugar sin romper alguna otra chingadera
 
   fprintf(stdout, "Escuchando en %s:%u ...\n", ip_address, port);
 
@@ -206,8 +206,8 @@ int main(int argc, char **argv) {
           memset(opayload, 0, PAYLOAD_SIZE); // Solo limpiar el payload
           bytes_leidos = fread(opayload, 1, PAYLOAD_SIZE, archivo);
 
-          *crc = crc32(0L, (const Bytef *)opayload, bytes_leidos);
-          memcpy(opayload + bytes_leidos, crc, sizeof(*crc));
+          /*crc = crc32(0L, (const Bytef *)opayload, bytes_leidos);//que aqui no va el calculo :|
+          memcpy(opayload + bytes_leidos, &crc, sizeof(crc));//un pinche hack culero*/
         }
 
         if (0 < bytes_leidos) { // si se leyeron mas de 0b se envia
@@ -216,8 +216,10 @@ int main(int argc, char **argv) {
               next_packet - 1; // el siguiente paquete menos 1 = paquete actual
           ohdr->type = DATA;
           ohdr->len = bytes_leidos;
+          crc=crc32(0L, (const Bytef *)obuffer, obuflen-sizeof(crc));
+          memcpy(opayload+bytes_leidos, &crc, sizeof((crc)));
           nsnd = sendto(
-              sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(*crc), 0,
+              sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,
               (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
           // nsnd = sendto(sock, obuffer, obuflen, 0, (struct sockaddr
           // *)&client_addr, sizeof(struct sockaddr));
@@ -229,7 +231,7 @@ int main(int argc, char **argv) {
                        "packet:%d with crc:%lx.\n" RESET,
                   bytes_leidos, inet_ntoa(client_addr.sin_addr),
                   ntohs(client_addr.sin_port), next_packet - 1,
-                  *crc); // imprime el paquete que se envio empezadno en 1
+                  crc); // imprime el paquete que se envio empezadno en 1
 
           memset(ibuffer, 0, ibuflen);     // limpiar el buffer por si acaso
           retry = false;                   // por defecto no se debe reintentar.
@@ -245,7 +247,7 @@ int main(int argc, char **argv) {
                     (curtimer.tv_usec - timerstart.tv_usec) >=
                 timelimitusec) { // si se alcanzo el tiempo limite
               retry = true;      // retry
-              printf("peticion no recibida\n");
+              printf("confirmacion no recibida\n");
               break;
             }
             // fprintf(stdout, KBLU "received confirmation %s  sent by %s with
@@ -287,9 +289,9 @@ int main(int argc, char **argv) {
 
       fclose(archivo);
       next_packet = 1;
-      *crc = crc32(0L, Z_NULL, 0);
+      crc = crc32(0L, Z_NULL, 0);
       retry = false;
-      *crc = crc32(0, Z_NULL, 0);
+      crc = crc32(0, Z_NULL, 0);
       memset(opayload, 0, PAYLOAD_SIZE);
 #ifdef VERBOSE
       printf("se cerro el archivo");
