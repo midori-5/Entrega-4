@@ -271,7 +271,9 @@ int main(int argc, char **argv) {
       ohdr->nseq = ihdr->nseq + 1;
       ohdr->type = END;
       ohdr->len = strlen(eos);
-      nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
+      crc=crc32(0L, (Bytef *)obuffer, sizeof(struct hdr)+ohdr->len);
+      memcpy(opayload+ohdr->len, &crc, sizeof((crc)));
+      nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len+sizeof(crc), 0,
                     (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
       if (nsnd == -1) {
         perror("End Of Stream");
@@ -289,9 +291,8 @@ int main(int argc, char **argv) {
 
       fclose(archivo);
       next_packet = 1;
-      crc = crc32(0L, Z_NULL, 0);
+      crc = crc32(0L, Z_NULL, 0);//limpiar el buffer ya es puro TOC
       retry = false;
-      crc = crc32(0, Z_NULL, 0);
       memset(opayload, 0, PAYLOAD_SIZE);
 #ifdef VERBOSE
       printf("se cerro el archivo");
