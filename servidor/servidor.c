@@ -1,7 +1,7 @@
 /*******************************************************************************
  *
  * Nombre:
- * 			Servidor de echo UDP.
+ * 			Servidor de transferencia de archivos TCP.
  *
  * Descripcion:
  *			Envia un archivo solicitado.
@@ -10,7 +10,7 @@
  *			gcc -DVERBOSE -Wall -Wextra -O2 ../common.c servidor.c -o servidor -lz
  *
  * Sintaxis:
- *		 	./servidor [-i <ip>] [-p <port>]
+ *		 	./servidor [-i <ip>] [-p <port>] [-t <microseconds>]
  *
  *******************************************************************************/
 
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
   char *ibuffer, *obuffer;
   struct hdr *ihdr, *ohdr;
   char *ipayload, *opayload;
-  // uint8_t seq;
+  // uint8_t seq;ñ
   int opt;
   FILE *archivo;
   int bytes_leidos = 0;

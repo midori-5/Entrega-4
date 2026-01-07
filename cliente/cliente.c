@@ -1,7 +1,7 @@
 /***************************
  *
  * Nombre:
- * Cliente de transferencia de archivos UDP.
+ * Cliente de transferencia de archivos TCP.
  *
  * Descripcion:
  * Envía el nombre de un archivo al servidor y recibe su contenido.
