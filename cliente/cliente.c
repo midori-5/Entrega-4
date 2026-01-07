@@ -196,7 +196,7 @@ int main(int argc, char **argv)
                 }
 
                 // Calcular CRC sobre los bytes recibidos
-                crc_local = crc32(0L, (const Bytef*)ibuffer, ibuflen-sizeof(crc_local)); // solo calcular sobre los bytes recibidos realmente
+                crc_local = crc32(0L, (const Bytef*)ibuffer, sizeof(struct hdr)+ihdr->len); // solo calcular sobre los bytes recibidos realmente
 
                 //obtener el crc remoto
                 memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
