@@ -185,8 +185,9 @@ int main(int argc, char **argv)
             
             memset(opayload, 0, PAYLOAD_SIZE);
             // ciclo para recibir archivo en bloques de datos hasta fin de cadena
-            while(ihdr->type!=END)
+            do
             {
+                
                 memset(ibuffer, 0, ibuflen);
                 nrcv = recvfrom(sock, ibuffer, ibuflen, 0, NULL, NULL);
                 if (nrcv <= 0)
@@ -194,25 +195,25 @@ int main(int argc, char **argv)
                     perror("recvfrom: se perdió la conexion durante la transferencia");
                     break;
                 }
-
-                // Calcular CRC sobre los bytes recibidos
-                crc_local = crc32(0L, (const Bytef*)ibuffer, sizeof(struct hdr)+ihdr->len); // solo calcular sobre los bytes recibidos realmente
-
-                //obtener el crc remoto
-                memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
-                    
-                if (crc_local!=crc_remoto){                        
-                    fflush(stderr);
-                    fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
-                    fprintf(stderr,"crc calculado=%lx crc recibido=%lx \n" KNRM, crc_local, crc_remoto);
-                    continue; 
-                }
                 
                 else if (ihdr->type == DATA) // DATA 1, DATA 2...
                 {   
 
+                    // Calcular CRC sobre los bytes recibidos
+                    crc_local = crc32(0L, (const Bytef*)ibuffer, sizeof(struct hdr)+ihdr->len); // solo calcular sobre los bytes recibidos realmente
+
+                    //obtener el crc remoto
+                    memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
+                    
+                    if (crc_local!=crc_remoto){                        
+                        fflush(stderr);
+                        fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
+                        fprintf(stderr,"crc calculado=%lx crc recibido=%lx \n" KNRM, crc_local, crc_remoto);
+                        continue; 
+                    }
+
                     // Verificar que el data que llego sea el esperado
-                    if (ihdr->nseq == next_ack_to_send-1)
+                    else if (ihdr->nseq == next_ack_to_send-1)
                     {   
 
                         // Cuando se recibe el paquete esperado
@@ -235,6 +236,21 @@ int main(int argc, char **argv)
 
                         printf("Enviando ACK %u.\n", next_ack_to_send);
                         next_ack_to_send++; // Incrementar el paquete que esperamos
+
+                    //luego porque queda culero el codigo si no lo entiendo y en lugar de reescribirlo nomas lo parcheo XD
+                    }else if (ihdr->nseq==next_ack_to_send-2){
+                        ohdr->nseq=next_ack_to_send-2;
+                        ohdr->type=ACK;
+                        ohdr->len=0;
+                        nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
+                                    (struct sockaddr *)&server_addr, sizeof(server_addr));
+                        if (nsnd == -1)
+                        {
+                            perror("sendto (ACK de datos)");
+                            break; // Salir del bucle de recepcion
+                        }
+                        //08-01-2026: esto deberia arreglar la sincronizacion pero aun falta hacer las pruebas
+
                     }
                     else
                     {
@@ -252,7 +268,7 @@ int main(int argc, char **argv)
                 if(next_ack_to_send == 256)
                 next_ack_to_send=1;
 
-            }
+            }while(ihdr->type!=END);
 
         fclose(fp);
         printf("Archivo recibido y guardado como %s\n", requested_filename);
