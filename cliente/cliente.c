@@ -40,7 +40,7 @@ int main(int argc, char **argv)
     char *ibuffer, *obuffer;
     struct hdr *ihdr, *ohdr;
     char *ipayload, *opayload;
-    uint8_t seq;
+    //uint8_t seq;
     int opt;
 
     size_t len;
@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     program_name = argv[0]; 
     ip_address = DEFAULT_IP;
     port = DEFAULT_PORT;
-    seq = 0;
+    //seq = 0;
 
     while ((opt = getopt(argc, argv, "i:p:h")) != -1)
     {
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
 
     while (1)
         {
-            seq = 0;
+            //seq = 0;
             printf("Nombre del archivo a solicitar (\"salir\" para terminar): ");
             fflush(stdout);
 
@@ -134,7 +134,7 @@ int main(int argc, char **argv)
                 break;
 
             // Debo enviar el nombre del archivo
-            ohdr->nseq = seq++;
+            ohdr->nseq = 0;
             ohdr->type = REQUEST;
             ohdr->len = (uint16_t)len;
 
@@ -221,7 +221,7 @@ int main(int argc, char **argv)
                         printf("Se ha escrito DATA %u (%u bytes).\n", ihdr->nseq, ihdr->len);
 
                         // Enviar ACK del siguiente paquete
-                        ohdr->nseq = seq++;
+                        ohdr->nseq = (uint8_t)next_ack_to_send;
                         ohdr->type = ACK;
                         ohdr->len = 0;  
 
@@ -237,9 +237,8 @@ int main(int argc, char **argv)
                         printf("Enviando ACK %u.\n", next_ack_to_send);
                         next_ack_to_send++; // Incrementar el paquete que esperamos
 
-                    //luego porque queda culero el codigo si no lo entiendo y en lugar de reescribirlo nomas lo parcheo XD
                     }else if (ihdr->nseq==next_ack_to_send-2){
-                        ohdr->nseq=next_ack_to_send-2;
+                        ohdr->nseq=(uint8_t)(next_ack_to_send - 1);
                         ohdr->type=ACK;
                         ohdr->len=0;
                         nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
@@ -274,7 +273,7 @@ int main(int argc, char **argv)
         printf("Archivo recibido y guardado como %s\n", requested_filename);
 
         // Envio confirmacion final al servidor
-        ohdr->nseq = seq++;
+        ohdr->nseq = (uint8_t)next_ack_to_send;
         ohdr->type = END;
         strcpy(opayload, "Se ha recibido con exito.");
         ohdr->len = (uint16_t)strlen(opayload);
