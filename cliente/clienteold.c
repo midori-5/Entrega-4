@@ -40,20 +40,25 @@ int main(int argc, char **argv)
     char *ibuffer, *obuffer;
     struct hdr *ihdr, *ohdr;
     char *ipayload, *opayload;
+    //uint8_t seq;
     int opt;
 
     size_t len;
     ssize_t nsnd, nrcv;
+    //struct sockaddr_in client_addr;
+    //socklen_t clilen;
     uLong crc_local;
     uLong crc_remoto;
 
     // Variables para guardar el nombre y contar ACKs
     char requested_filename[PAYLOAD_SIZE];
     uint32_t next_ack_to_send = 1;
+    //char ack_payload_str[12]; // Buffer para 1,2,3...
 
     program_name = argv[0]; 
     ip_address = DEFAULT_IP;
     port = DEFAULT_PORT;
+    //seq = 0;
 
     while ((opt = getopt(argc, argv, "i:p:h")) != -1)
     {
@@ -109,9 +114,11 @@ int main(int argc, char **argv)
     opayload = obuffer + sizeof(struct hdr);
     ihdr = (struct hdr *)ibuffer;
     ipayload = ibuffer + sizeof(struct hdr);
+    //crc_remoto=(uLong *)(ibuffer+sizeof(struct hdr) + PAYLOAD_SIZE); 
 
     while (1)
         {
+            //seq = 0;
             printf("Nombre del archivo a solicitar (\"salir\" para terminar): ");
             fflush(stdout);
 
@@ -180,8 +187,8 @@ int main(int argc, char **argv)
             // ciclo para recibir archivo en bloques de datos hasta fin de cadena
             do
             {
-                memset(ibuffer, 0, ibuflen);
                 
+                memset(ibuffer, 0, ibuflen);
                 nrcv = recvfrom(sock, ibuffer, ibuflen, 0, NULL, NULL);
                 if (nrcv <= 0)
                 {   
@@ -191,8 +198,9 @@ int main(int argc, char **argv)
                 
                 else if (ihdr->type == DATA) // DATA 1, DATA 2...
                 {   
+
                     // Calcular CRC sobre los bytes recibidos
-                    crc_local = crc32(0L, (const Bytef*)ibuffer, sizeof(struct hdr)+ihdr->len); 
+                    crc_local = crc32(0L, (const Bytef*)ibuffer, sizeof(struct hdr)+ihdr->len); // solo calcular sobre los bytes recibidos realmente
 
                     //obtener el crc remoto
                     memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
@@ -200,45 +208,52 @@ int main(int argc, char **argv)
                     if (crc_local!=crc_remoto){                        
                         fflush(stderr);
                         fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
+                        fprintf(stderr,"crc calculado=%lx crc recibido=%lx \n" KNRM, crc_local, crc_remoto);
                         continue; 
                     }
 
-                    if (ihdr->nseq == (uint8_t)(next_ack_to_send - 1)) // Verifico que el paquete sea el correcto
+                    // Verificar que el data que llego sea el esperado
+                    else if (ihdr->nseq == next_ack_to_send-1)
                     {   
+
+                        // Cuando se recibe el paquete esperado
                         fwrite(ipayload, 1, ihdr->len, fp);
                         printf("Se ha escrito DATA %u (%u bytes).\n", ihdr->nseq, ihdr->len);
 
+                        // Enviar ACK del siguiente paquete
                         ohdr->nseq = (uint8_t)next_ack_to_send;
                         ohdr->type = ACK;
                         ohdr->len = 0;  
 
+                        //Envio de ACK al servidor                        
                         nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
                                     (struct sockaddr *)&server_addr, sizeof(server_addr));
                         if (nsnd == -1)
                         {
                             perror("sendto (ACK de datos)");
-                            break; 
+                            break; // Salir del bucle de recepcion
                         }
 
                         printf("Enviando ACK %u.\n", next_ack_to_send);
-                        next_ack_to_send++; 
-                    }
-                    // Verifico si es el anterior al paquete correcto
-                    // (uint8_t)(1 - 2) se convierte en 255 automaticamente
-                    else if (ihdr->nseq == (uint8_t)(next_ack_to_send - 2))
-                    {
-                        printf("Paquete duplicado %u. Reenviando ACK %u.\n", ihdr->nseq, (uint8_t)(ihdr->nseq + 1));
-                        
-                        ohdr->nseq = (uint8_t)(ihdr->nseq + 1);
-                        ohdr->type = ACK;
-                        ohdr->len = 0;
+                        next_ack_to_send++; // Incrementar el paquete que esperamos
+
+                    }else if (ihdr->nseq==next_ack_to_send-2){
+                        ohdr->nseq=(uint8_t)(next_ack_to_send - 1);
+                        ohdr->type=ACK;
+                        ohdr->len=0;
                         nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
                                     (struct sockaddr *)&server_addr, sizeof(server_addr));
-                        if (nsnd == -1) break; 
+                        if (nsnd == -1)
+                        {
+                            perror("sendto (ACK de datos)");
+                            break; // Salir del bucle de recepcion
+                        }
+
                     }
                     else
                     {
-                        fprintf(stderr, "Paquete DATA %u, se esperaba %u.\n", ihdr->nseq, (uint8_t)(next_ack_to_send - 1));
+                        // cuando se recibe un paquete que no se esperaba
+                        fprintf(stderr, "Paquete DATA %u, se esperaba %u.\n", ihdr->nseq, next_ack_to_send-1);
                     }
                 }
 
@@ -248,10 +263,8 @@ int main(int argc, char **argv)
                     fprintf(stderr, "Se recibio un paquete inesperado durante la transferencia:%d.\n", ihdr->type);
                     break;
                 }
-                
-                // reinicio el contador para el ciclo
-                if(next_ack_to_send == 257)
-                    next_ack_to_send = 1;
+                if(next_ack_to_send == 256)
+                next_ack_to_send=1;
 
             }while(ihdr->type!=END);
 
