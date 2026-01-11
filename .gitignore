@@ -1,4 +1,6 @@
 servidor/servidor
 cliente/cliente
-*jpeg
-*flac
+*.jpeg
+*.flac
+*.png
+*.jpg

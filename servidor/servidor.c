@@ -272,11 +272,14 @@ int main(int argc, char **argv) {
             num_Paq--;
           }
         }
-      } while (0 < bytes_leidos);
+      } while ((0 < bytes_leidos)||(retry==true));
       // restaurar el estado de la funcion bloqueante
       fcntl(sock, F_SETFL, flags);
-
+      
       // enviar fin de transmision
+#ifdef VERBOSE
+              printf(KGRN "Enviando fin de transmision.\n" RESET);
+#endif
       memcpy(opayload, eos, strlen(eos));
       ohdr->nseq = ihdr->nseq + 1;
       ohdr->type = END;
@@ -284,8 +287,8 @@ int main(int argc, char **argv) {
       crc = crc32(0L, (Bytef *)obuffer, sizeof(struct hdr) + ohdr->len);
       memcpy(opayload + ohdr->len, &crc, sizeof((crc)));
       nsnd =
-          sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,
-                 (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+      sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,
+      (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
       if (nsnd == -1) {
         perror("No se envio el fin de archivo");
       }
@@ -294,7 +297,10 @@ int main(int argc, char **argv) {
       if (nrcv > 0 && ihdr->type == END) {
         printf("Respuesta del cliente: %s\n", ipayload);
       }
-
+#ifdef VERBOSE
+              printf(KGRN "Se recibio confirmacion del cliente.\n" RESET);
+#endif
+      
       fclose(archivo);
       num_Paq = 0;
       retry = false;
