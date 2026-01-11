@@ -20,7 +20,7 @@ void usage(FILE *stream)
     fprintf(stream,
         " -i <X.X.X.X>     Dirección IPv4 (default: " DEFAULT_IP ")\n"
         " -p <0-65535>     Puerto TCP (default: %d)\n"
-        " -t <us>          Tiempo de espera (timeout) en microsegundos para las confirmaciones del cliente [default=500000]"
+        " -t <us>          Tiempo de espera (timeout) en microsegundos para las confirmaciones del cliente [default=50000 (50ms)]\n"
         " -h               Muestra esta ayuda\n"
         " -v               Modo detallado\n", DEFAULT_PORT);
 }
