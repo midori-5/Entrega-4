@@ -7,7 +7,8 @@
  *			Envia un archivo solicitado.
  *
  * Compilación:
- *			gcc -DVERBOSE -Wall -Wextra -O2 ../common.c servidor.c -o servidor -lz
+ *			gcc -DVERBOSE -Wall -Wextra -O2 ../common.c servidor.c
+ *-o servidor -lz
  *
  * Sintaxis:
  *		 	./servidor [-i <ip>] [-p <port>] [-t <microseconds>]
@@ -72,8 +73,8 @@ int main(int argc, char **argv) {
                       // reenviar
   struct timeval timer_Start;
   struct timeval cur_time;
-  int time_limit=50000;        // cantidad de tiempo a esperar en microsegundos
-  uint8_t num_Paq; // numero de paquete
+  int time_limit = 50000; // cantidad de tiempo a esperar en microsegundos
+  uint8_t num_Paq=0;        // numero de paquete
   int flags; // variable para guardar el estado de la funcion antes de hacerla
              // no bloqueante
 
@@ -120,8 +121,7 @@ int main(int argc, char **argv) {
   }
 
   ibuflen = sizeof(struct hdr) + PAYLOAD_SIZE;
-  obuflen = sizeof(struct hdr) + PAYLOAD_SIZE +
-            sizeof(uLong); // tam. del header + buffer + crc
+  obuflen = sizeof(struct hdr) + PAYLOAD_SIZE +sizeof(uLong); // tam. del header + buffer + crc
   ibuffer = calloc(1, ibuflen);
   obuffer = calloc(1, obuflen);
   if (!ibuffer || !obuffer) {
@@ -178,7 +178,7 @@ int main(int argc, char **argv) {
       /*
        *caso en el que el archivo no existe
        */
-      printf(KRED"el archivo solicitado no existe\n"RESET);
+      printf(KRED "el archivo solicitado no existe\n" RESET);
       // enviar mensaje de error.
       memcpy(opayload, msg_error, strlen(msg_error));
       ohdr->nseq = ihdr->nseq + 1;
@@ -199,11 +199,12 @@ int main(int argc, char **argv) {
       ohdr->nseq = ihdr->nseq + 1;
       ohdr->type = REPLY;
       ohdr->len = strlen(msg_existente);
-      nsnd=sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
-             (struct sockaddr *)&client_addr, sizeof(struct sockaddr)); //
+      nsnd =
+          sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
+                 (struct sockaddr *)&client_addr, sizeof(struct sockaddr)); //
       if (-1 == nsnd) {
         perror("No se envio la confirmacion al cliente\n");
-		break;
+        break;
       }
       /*
        *Envio de datos
@@ -213,77 +214,91 @@ int main(int argc, char **argv) {
       fcntl(sock, F_SETFL, flags | O_NONBLOCK);
       do {
         if (retry == false) {
-          	// se lee un pedazo del archivo solo si no se indica enviar el que se
-          	// leyo antes
-        	bytes_leidos = fread(opayload, 1, PAYLOAD_SIZE, archivo);
+          // se lee un pedazo del archivo solo si no se indica enviar el que se
+          // leyo antes
+          bytes_leidos = fread(opayload, 1, PAYLOAD_SIZE, archivo);
         }
-		if (bytes_leidos>0){//solo se envia el paquete si se leyeron datos.
-			//primero preparo el paquete
-			ohdr->nseq=num_Paq;
-			ohdr->type=DATA;
-			ohdr->len=bytes_leidos;
-			//luego calculo la suma de verificacion
-			crc=crc32(0L, (const Bytef *)obuffer, sizeof(struct hdr)+ohdr->len);
-			memcpy(opayload+bytes_leidos, &crc, sizeof(crc));
-			nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,(struct sockaddr *)&client_addr, sizeof(struct sockaddr));//
-			if (nsnd==-1){
-				perror("No se enviaron datos al cliente");
-				continue;
-			}
-			#ifdef VERBOSE
-			printf(KGRN"se enviaron %d bytes a %s con puerto %d\n\tpaquete:%d con crc:%lx\n"RESET, bytes_leidos, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port),num_Paq, crc);
-			#endif
-			//timer para esperar la respuesta del cliente;
-			gettimeofday(&timer_Start, NULL);
-			do{
-				nrcv =recvfrom(sock, ibuffer, MAX_MSGLEN, 0,(struct sockaddr *)&client_addr, (socklen_t *)&clilen);
-				gettimeofday(&cur_time, NULL);
-				if(((cur_time.tv_sec-timer_Start.tv_sec)*1000000L+(cur_time.tv_usec-timer_Start.tv_usec))>=time_limit){
-					retry=true;
-					#ifdef VERBOSE
-					printf(KRED"No se recibio respuesta del cliente.\n"RESET);
-					#endif
-					break;
-				}
-			}while(nrcv==-1);
-			//verificar que se haya pedido el siguiente paquete
-			num_Paq++;
-			if (ihdr->nseq!=num_Paq){
-				retry=true;
-				#ifdef VERBOSE
-					printf(KRED"El cliente y el servidor se desincronizaron.\nServidor:%d  cliente:%d.\n"RESET, num_Paq, ihdr->nseq);
-				#endif
-			}
-			//no hay que avanzar al siguiente paquete si se tiene que volver a enviar el actual
-			if (retry){
-				num_Paq--;
-			}
-		}
+        if (bytes_leidos > 0) { // solo se envia el paquete si se leyeron datos.
+          // primero preparo el paquete
+          ohdr->nseq = num_Paq;
+          ohdr->type = DATA;
+          ohdr->len = bytes_leidos;
+          // luego calculo la suma de verificacion
+          crc =
+              crc32(0L, (const Bytef *)obuffer, sizeof(struct hdr) + ohdr->len);
+          memcpy(opayload + bytes_leidos, &crc, sizeof(crc));
+          nsnd = sendto(
+              sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,
+              (struct sockaddr *)&client_addr, sizeof(struct sockaddr)); //
+          if (nsnd == -1) {
+            perror("No se enviaron datos al cliente");
+            continue;
+          }
+#ifdef VERBOSE
+          printf(KGRN "se enviaron %d bytes a %s con puerto %d\n\tpaquete:%d "
+                      "con crc:%lx\n" RESET,
+                 bytes_leidos, inet_ntoa(client_addr.sin_addr),
+                 ntohs(client_addr.sin_port), num_Paq, crc);
+#endif
+          // timer para esperar la respuesta del cliente;
+          gettimeofday(&timer_Start, NULL);
+          do {
+            nrcv =
+                recvfrom(sock, ibuffer, MAX_MSGLEN, 0,
+                         (struct sockaddr *)&client_addr, (socklen_t *)&clilen);
+            gettimeofday(&cur_time, NULL);
+            if (((cur_time.tv_sec - timer_Start.tv_sec) * 1000000L +
+                 (cur_time.tv_usec - timer_Start.tv_usec)) >= time_limit) {
+              retry = true;
+#ifdef VERBOSE
+              printf(KRED "No se recibio respuesta del cliente.\n" RESET);
+#endif
+              break;
+            }
+          } while (nrcv == -1);
+          // verificar que se haya pedido el siguiente paquete
+          num_Paq++;
+          if (ihdr->nseq != num_Paq) {
+            retry = true;
+#ifdef VERBOSE
+            printf(KRED "El cliente y el servidor se "
+                        "desincronizaron.\nServidor:%d  cliente:%d.\n" RESET,
+                   num_Paq, ihdr->nseq);
+#endif
+          }else{retry=false;}
+          // no hay que avanzar al siguiente paquete si se tiene que volver a
+          // enviar el actual
+          if (retry) {
+            num_Paq--;
+          }
+        }
       } while (0 < bytes_leidos);
-	  //restaurar el estado de la funcion bloqueante
-	  fcntl(sock, F_SETFL, flags);
+      // restaurar el estado de la funcion bloqueante
+      fcntl(sock, F_SETFL, flags);
 
-	  //enviar fin de transmision
-	  memcpy(opayload, eos, strlen(eos));
-	  ohdr->nseq=ihdr->nseq+1;
-	  ohdr->type=END;
-	  ohdr->len=strlen(eos);
-	  crc = crc32(0L, (Bytef *)obuffer, sizeof(struct hdr) + ohdr->len);
-	  memcpy(opayload + ohdr->len, &crc, sizeof((crc)));
-	  nsnd =sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,(struct sockaddr *)&client_addr, sizeof(struct sockaddr));
-	  if (nsnd == -1) {
+      // enviar fin de transmision
+      memcpy(opayload, eos, strlen(eos));
+      ohdr->nseq = ihdr->nseq + 1;
+      ohdr->type = END;
+      ohdr->len = strlen(eos);
+      crc = crc32(0L, (Bytef *)obuffer, sizeof(struct hdr) + ohdr->len);
+      memcpy(opayload + ohdr->len, &crc, sizeof((crc)));
+      nsnd =
+          sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,
+                 (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+      if (nsnd == -1) {
         perror("No se envio el fin de archivo");
       }
-	  //confirmacion del cliente
-	  nrcv = recvfrom(sock, ibuffer, ibuflen, 0, NULL, NULL);
+      // confirmacion del cliente
+      nrcv = recvfrom(sock, ibuffer, ibuflen, 0, NULL, NULL);
       if (nrcv > 0 && ihdr->type == END) {
         printf("Respuesta del cliente: %s\n", ipayload);
       }
 
-	  fclose(archivo);
-	  num_Paq=0;
-	  retry=false;
-	  memset(opayload, 0, PAYLOAD_SIZE);
+      fclose(archivo);
+      num_Paq = 0;
+      retry = false;
+      memset(opayload, 0, PAYLOAD_SIZE);
     }
 
 #ifdef VERBOSE
