@@ -170,9 +170,7 @@ int main(int argc, char **argv) {
       fprintf(stdout, "%02X ", ipayload[i]);
     fprintf(stdout, "\n--------------------------------------\n\n");
 #endif
-    /*
-    aca va el codigo
-    */
+
     // apertura del archivo.
     ipayload[ihdr->len] = '\0';
     archivo = fopen(ipayload, "rb");
@@ -249,20 +247,21 @@ int main(int argc, char **argv) {
 				}
 			}while(nrcv==-1);
 			//verificar que se haya pedido el siguiente paquete
-			if (ihdr->nseq!=num_Paq+1){
+			num_Paq++;
+			if (ihdr->nseq!=num_Paq){
 				retry=true;
 				#ifdef VERBOSE
 					printf(KRED"El cliente y el servidor se desincronizaron.\nServidor:%d  cliente:%d.\n"RESET, num_Paq, ihdr->nseq);
 				#endif
 			}
 			//no hay que avanzar al siguiente paquete si se tiene que volver a enviar el actual
-			if (!retry){
-				num_Paq++;
+			if (retry){
+				num_Paq--;
 			}
 		}
       } while (0 < bytes_leidos);
 	  //restaurar el estado de la funcion bloqueante
-	  //fcntl(sock, F_SETFL, flags);
+	  fcntl(sock, F_SETFL, flags);
 
 	  //enviar fin de transmision
 	  memcpy(opayload, eos, strlen(eos));
