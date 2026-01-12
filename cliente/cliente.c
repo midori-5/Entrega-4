@@ -188,20 +188,21 @@ int main(int argc, char **argv)
                     perror("recvfrom: se perdió la conexion durante la transferencia");
                     break;
                 }
+
+                // Calcular CRC sobre los bytes recibidos
+                crc_local = crc32(0L, (const Bytef*)ibuffer, sizeof(struct hdr)+ihdr->len); 
+
+                //obtener el crc remoto
+                memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
+                    
+                if (crc_local!=crc_remoto){                        
+                    fflush(stderr);
+                    fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
+                    continue; 
+                }
                 
                 else if (ihdr->type == DATA) // DATA 1, DATA 2...
                 {   
-                    // Calcular CRC sobre los bytes recibidos
-                    crc_local = crc32(0L, (const Bytef*)ibuffer, sizeof(struct hdr)+ihdr->len); 
-
-                    //obtener el crc remoto
-                    memcpy(&crc_remoto, ibuffer + sizeof(struct hdr) + ihdr->len, sizeof(uLong));
-                    
-                    if (crc_local!=crc_remoto){                        
-                        fflush(stderr);
-                        fprintf(stderr,KRED"***Error. archivo corrupto en paquete %u\n" KNRM, ihdr->nseq);
-                        continue; 
-                    }
 
                     uint8_t ack_esperado = (uint8_t)(next_ack_to_send - 1u); // El ACK que espero
                     uint8_t ack_anterior = (uint8_t)(next_ack_to_send - 2u); // El ACK anterior al esperado
@@ -231,7 +232,7 @@ int main(int argc, char **argv)
                     else if (ihdr->nseq == ack_anterior)
                     {
                         uint8_t reenviar_ack = (uint8_t)(ihdr->nseq + 1u);
-                        
+
                         printf("Paquete duplicado %u. Reenviando ACK %u.\n", ihdr->nseq, reenviar_ack);
                         
                         ohdr->nseq = reenviar_ack;
