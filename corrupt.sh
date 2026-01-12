@@ -1,8 +1,8 @@
 #!/bin/bash
 #script para "corromper" los paquetes de salida
-IFACE="lo"
-PORT=4950
-PERC=0.3
+IFACE="enx00e04c68cf22"
+PORT=5000
+PERC=0.99
 # A partir del inicio del encabezado IP (para modificar el 1er byte de la carga util sería el byte #28)
 BYTE=100
 ACTION="invert" # "set FF"
