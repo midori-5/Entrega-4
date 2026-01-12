@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 
     // Variables para guardar el nombre y contar ACKs
     char requested_filename[PAYLOAD_SIZE];
-    uint32_t next_ack_to_send = 1;
+    uint8_t next_ack_to_send = 1;
 
     program_name = argv[0]; 
     ip_address = DEFAULT_IP;
@@ -173,8 +173,8 @@ int main(int argc, char **argv)
                 break;
             }
 
-            // Establecer el siguiente paquete que esperamos
-            next_ack_to_send = 1; 
+            // Establecer el siguiente ACK a enviar
+            next_ack_to_send = 1;
             
             memset(opayload, 0, PAYLOAD_SIZE);
             // ciclo para recibir archivo en bloques de datos hasta fin de cadena
@@ -203,12 +203,15 @@ int main(int argc, char **argv)
                         continue; 
                     }
 
-                    if (ihdr->nseq == (uint8_t)(next_ack_to_send - 1)) // Verifico que el paquete sea el correcto
+                    uint8_t ack_esperado = (uint8_t)(next_ack_to_send - 1u); // El ACK que espero
+                    uint8_t ack_anterior = (uint8_t)(next_ack_to_send - 2u); // El ACK anterior al esperado
+
+                    if (ihdr->nseq == ack_esperado) // Verifico que el paquete sea el correcto
                     {   
                         fwrite(ipayload, 1, ihdr->len, fp);
                         printf("Se ha escrito DATA %u (%u bytes).\n", ihdr->nseq, ihdr->len);
 
-                        ohdr->nseq = (uint8_t)next_ack_to_send;
+                        ohdr->nseq = next_ack_to_send;
                         ohdr->type = ACK;
                         ohdr->len = 0;  
 
@@ -221,15 +224,17 @@ int main(int argc, char **argv)
                         }
 
                         printf("Enviando ACK %u.\n", next_ack_to_send);
-                        next_ack_to_send++; 
+                        next_ack_to_send++;
                     }
+
                     // Verifico si es el anterior al paquete correcto
-                    // (uint8_t)(1 - 2) se convierte en 255 automaticamente
-                    else if (ihdr->nseq == (uint8_t)(next_ack_to_send - 2))
+                    else if (ihdr->nseq == ack_anterior)
                     {
-                        printf("Paquete duplicado %u. Reenviando ACK %u.\n", ihdr->nseq, (uint8_t)(ihdr->nseq + 1));
+                        uint8_t reenviar_ack = (uint8_t)(ihdr->nseq + 1u);
                         
-                        ohdr->nseq = (uint8_t)(ihdr->nseq + 1);
+                        printf("Paquete duplicado %u. Reenviando ACK %u.\n", ihdr->nseq, reenviar_ack);
+                        
+                        ohdr->nseq = reenviar_ack;
                         ohdr->type = ACK;
                         ohdr->len = 0;
                         nsnd = sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
@@ -238,7 +243,7 @@ int main(int argc, char **argv)
                     }
                     else
                     {
-                        fprintf(stderr, "Paquete DATA %u, se esperaba %u.\n", ihdr->nseq, (uint8_t)(next_ack_to_send - 1));
+                        fprintf(stderr, "Paquete DATA %u, se esperaba %u.\n", ihdr->nseq, ack_esperado);
                     }
                 }
 
@@ -249,17 +254,13 @@ int main(int argc, char **argv)
                     break;
                 }
                 
-                // reinicio el contador para el ciclo
-                if(next_ack_to_send == 257)
-                    next_ack_to_send = 1;
-
             }while(ihdr->type!=END);
 
         fclose(fp);
         printf("Archivo recibido y guardado como %s\n", requested_filename);
 
         // Envio confirmacion final al servidor
-        ohdr->nseq = (uint8_t)next_ack_to_send;
+        ohdr->nseq = next_ack_to_send;
         ohdr->type = END;
         strcpy(opayload, "Se ha recibido con exito.");
         ohdr->len = (uint16_t)strlen(opayload);
