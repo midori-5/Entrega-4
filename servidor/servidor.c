@@ -246,6 +246,7 @@ int main(int argc, char **argv) {
 #endif
           // timer para esperar la respuesta del cliente;
           gettimeofday(&timer_Start, NULL);
+          retry=false;
           do {
             nrcv =
                 recvfrom(sock, ibuffer, MAX_MSGLEN, 0,
@@ -262,7 +263,8 @@ int main(int argc, char **argv) {
           } while (nrcv == -1);
           // verificar que se haya pedido el siguiente paquete
           num_Paq++;
-          if (ihdr->nseq != num_Paq) {
+          if(retry==true){}
+          else if (ihdr->nseq != num_Paq) {
             retry = true;
 #ifdef VERBOSE
             printf(KRED "El cliente y el servidor se "
@@ -270,9 +272,10 @@ int main(int argc, char **argv) {
                    num_Paq, ihdr->nseq);
 #endif
           }else{retry=false;}
+          printf("%d",ihdr->nseq);
           // no hay que avanzar al siguiente paquete si se tiene que volver a
           // enviar el actual
-          if (retry) {
+          if (retry){
             num_Paq--;
           }
         }
@@ -309,6 +312,7 @@ int main(int argc, char **argv) {
       num_Paq = 0;
       retry = false;
       memset(opayload, 0, PAYLOAD_SIZE);
+      memset(ibuffer, 0, ibuflen);
     }
 
 #ifdef VERBOSE
