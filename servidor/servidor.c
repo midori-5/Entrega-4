@@ -184,8 +184,10 @@ int main(int argc, char **argv) {
       ohdr->nseq = ihdr->nseq + 1;
       ohdr->type = REPLY;
       ohdr->len = strlen(msg_error);
+      crc = crc32(0L, (Bytef *)obuffer, sizeof(struct hdr) + ohdr->len);
+      memcpy(opayload + ohdr->len, &crc, sizeof((crc)));
       nsnd =
-          sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
+          sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,
                  (struct sockaddr *)&client_addr, sizeof(struct sockaddr)); //
       if (-1 == nsnd) {
         perror("No se envio la confirmacion al cliente\n");
@@ -199,8 +201,10 @@ int main(int argc, char **argv) {
       ohdr->nseq = ihdr->nseq + 1;
       ohdr->type = REPLY;
       ohdr->len = strlen(msg_existente);
+      crc = crc32(0L, (Bytef *)obuffer, sizeof(struct hdr) + ohdr->len);
+      memcpy(opayload + ohdr->len, &crc, sizeof((crc)));
       nsnd =
-          sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len, 0,
+          sendto(sock, obuffer, sizeof(struct hdr) + ohdr->len + sizeof(crc), 0,
                  (struct sockaddr *)&client_addr, sizeof(struct sockaddr)); //
       if (-1 == nsnd) {
         perror("No se envio la confirmacion al cliente\n");
